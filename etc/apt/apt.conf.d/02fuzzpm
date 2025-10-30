@@ -1,0 +1,2 @@
+// APT to refresh the package cache
+DPkg::Post-Invoke { "if [ -x /usr/local/bin/fpm ]; then /usr/local/bin/fpm --refresh; fi"; };

@@ -1,0 +1,13 @@
+Package: fuzzpm
+Version: 1.0.1
+Section: utils
+Priority: optional
+Architecture: all
+Depends: fzf, apt
+Recommends: bat
+Maintainer: Giulio Grassia <ggrassiawork@gmail.com>
+Description: A fuzzy, minimal package browser for APT systems
+ A fuzzy package browser that makes browsing and installing 
+ Debian/Ubuntu packages as fast and beautiful, inspired by Omarchy.
+ Automatically updates its cache when you run
+ 'sudo apt update'.

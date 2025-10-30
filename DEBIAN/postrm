@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+if [ "$1" = "purge" ]; then
+    # Remove the cache directory
+    if [ -d /var/cache/fuzzpm ]; then
+        rm -rf /var/cache/fuzzpm
+    fi
+fi
+
+exit 0

@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+# Create the initial cache on first install
+if [ "$1" = "configure" ]; then
+    echo "fuzzpm: Building initial package cache..."
+    /usr/local/bin/fpm --refresh
+    echo "fuzzpm: Done."
+fi
+
+exit 0
