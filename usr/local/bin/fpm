@@ -1,0 +1,137 @@
+cat > /usr/local/bin/fpm << 'EOF'
+#!/bin/bash
+
+# Fuzzpm - A fuzzy search, minimal package browser for APT systems
+# Author: Giulio Grassia
+# Version: 0.1
+
+# --- Configuration ---
+# System-wide cache directory
+CACHE_DIR="/var/cache/fuzzpm"
+CACHE_FILE="$CACHE_DIR/packages.txt"
+CONFIG_DIR="$HOME/.config/fuzzpm"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+# --- Functions ---
+update_cache() {
+    # This function should be run as root
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}Error: Cache update requires root privileges. Please run 'fpm --refresh'.${NC}" >&2
+        exit 1
+    fi
+
+    echo -n "Updating fuzzpm cache... "
+    # Ensure cache directory exists with correct permissions
+    mkdir -p "$CACHE_DIR"
+    chmod 755 "$CACHE_DIR"
+
+    # Generate the package list
+    apt-cache search . 2>/dev/null > "$CACHE_FILE"
+    chmod 644 "$CACHE_FILE"
+    echo "Done."
+}
+
+check_cache() {
+    if [ ! -f "$CACHE_FILE" ]; then
+        echo -e "${YELLOW}Package cache not found.${NC}"
+        echo -e "${BLUE}Please run 'sudo apt update' to generate it.${NC}"
+        exit 1
+    fi
+}
+
+show_help() {
+    echo "Fuzzpm - A fuzzy search, minimal package browser for APT systems"
+    echo ""
+    echo "Usage: fpm [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo "  -r, --refresh  Refresh package cache (requires sudo)"
+    echo "  -c, --config   Open configuration file"
+    echo ""
+    echo "Keyboard shortcuts:"
+    echo "  Enter          Install selected package"
+    echo "  Ctrl-U         Uninstall selected package"
+    echo "  Ctrl-H         Show package details in pager"
+    echo "  Ctrl-C         Exit"
+    echo ""
+    echo "Note: The package cache is automatically updated after installing or removing a package."
+}
+
+# --- Main Logic ---
+
+# Ensure user config dir exists
+mkdir -p "$CONFIG_DIR"
+
+# Default config (for future use, e.g., USE_BAT)
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "# fuzzpm configuration" > "$CONFIG_FILE"
+fi
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Parse command line arguments
+case "${1:-}" in
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+    -r|--refresh)
+        update_cache
+        exit 0
+        ;;
+    -c|--config)
+        ${EDITOR:-nano} "$CONFIG_FILE"
+        exit 0
+        ;;
+    "")
+        # No arguments, continue to main program
+        ;;
+    *)
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+esac
+
+# Check for dependencies
+if ! command -v fzf &> /dev/null; then
+    echo -e "${RED}Error: 'fzf' is not installed. Please install it with 'sudo apt install fzf'${NC}" >&2
+    exit 1
+fi
+
+# Ensure cache exists before running fzf
+check_cache
+
+# Main fzf interface
+main() {
+    # Use bat for preview if available, otherwise use cat
+    PREVIEW_CMD="apt show {1} 2>/dev/null"
+    if command -v bat &> /dev/null; then
+        PREVIEW_CMD="$PREVIEW_CMD | bat --style=plain --color=always --language=deb"
+    fi
+
+    local pkg
+    pkg=$(cut -d' ' -f1 "$CACHE_FILE" | fzf \
+        --prompt="Search packages: " \
+        --header="Enter: Install | Ctrl-U: Uninstall | Ctrl-H: Details" \
+        --preview="$PREVIEW_CMD" \
+        --preview-window=right:50% \
+        --bind="ctrl-u:execute(sudo apt remove -y {1} && echo -e '${GREEN}Package {1} removed.${NC}')+abort" \
+        --bind="ctrl-h:execute(apt show {1} 2>/dev/null | less)" \
+        --bind="enter:execute(sudo apt install -y {1} && echo -e '${GREEN}Package {1} installed.${NC}')+abort" \
+        --height=100% \
+        --layout=reverse)
+
+    if [ -z "$pkg" ]; then
+        echo -e "${YELLOW}No package selected. Exiting.${NC}"
+    fi
+}
+
+main
+EOF
