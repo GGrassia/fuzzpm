@@ -129,15 +129,11 @@ main() {
         --header="Enter: Install | Ctrl-U: Uninstall | Ctrl-H: Details" \
         --preview="$PREVIEW_CMD" \
         --preview-window=right:50% \
-        --bind="ctrl-u:execute(sudo apt remove -y {1} > /dev/tty 2>&1; echo ''; echo -e '${GREEN}Press Enter to continue...${NC}'; read < /dev/tty)+abort" \
+        --bind="ctrl-u:execute(sudo apt remove -y {1} > /dev/tty 2>&1; echo '' > /dev/tty; echo -e '${GREEN}Operation complete. Press Enter to exit fpm...${NC}' > /dev/tty; read < /dev/tty)+abort" \
         --bind="ctrl-h:execute((apt-cache show {1} 2>/dev/null) | less)" \
-        --bind="enter:execute(sudo apt install -y {1} > /dev/tty 2>&1; echo ''; echo -e '${GREEN}Press Enter to continue...${NC}'; read < /dev/tty)+abort" \
+        --bind="enter:execute(sudo apt install -y {1} > /dev/tty 2>&1; echo '' > /dev/tty; echo -e '${GREEN}Operation complete. Press Enter to exit fpm...${NC}' > /dev/tty; read < /dev/tty)+abort" \
         --height=100% \
         --layout=reverse)
-
-    if [ -z "$pkg" ]; then
-        echo -e "${YELLOW}No package selected. Exiting.${NC}"
-    fi
 }
 
 main
