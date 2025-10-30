@@ -2,7 +2,7 @@
 
 # Fuzzpm - A fuzzy search, minimal package browser for APT systems
 # Author: Giulio Grassia
-# Version: 0.2
+# Version: 1.0
 
 # --- Configuration ---
 # System-wide cache directory
