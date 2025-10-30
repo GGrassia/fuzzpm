@@ -1,9 +1,8 @@
-cat > /usr/local/bin/fpm << 'EOF'
 #!/bin/bash
 
 # Fuzzpm - A fuzzy search, minimal package browser for APT systems
 # Author: Giulio Grassia
-# Version: 0.1
+# Version: 0.2
 
 # --- Configuration ---
 # System-wide cache directory
@@ -12,11 +11,18 @@ CACHE_FILE="$CACHE_DIR/packages.txt"
 CONFIG_DIR="$HOME/.config/fuzzpm"
 CONFIG_FILE="$CONFIG_DIR/config"
 
+# --- Colors ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
 # --- Functions ---
 update_cache() {
     # This function should be run as root
     if [ "$(id -u)" -ne 0 ]; then
-        echo -e "${RED}Error: Cache update requires root privileges. Please run 'fpm --refresh'.${NC}" >&2
+        echo -e "${RED}Error: Cache update requires root privileges. Please run 'sudo fpm --refresh'.${NC}" >&2
         exit 1
     fi
 
@@ -25,8 +31,9 @@ update_cache() {
     mkdir -p "$CACHE_DIR"
     chmod 755 "$CACHE_DIR"
 
-    # Generate the package list
-    apt-cache search . 2>/dev/null > "$CACHE_FILE"
+    # Generate the package list using apt-cache search and sort it
+    # Redirect stderr to /dev/null to suppress the "unstable CLI" warning during cache generation
+    apt-cache search . 2>/dev/null | sort > "$CACHE_FILE"
     chmod 644 "$CACHE_FILE"
     echo "Done."
 }
@@ -34,7 +41,14 @@ update_cache() {
 check_cache() {
     if [ ! -f "$CACHE_FILE" ]; then
         echo -e "${YELLOW}Package cache not found.${NC}"
-        echo -e "${BLUE}Please run 'sudo apt update' to generate it.${NC}"
+        echo -e "${BLUE}Please run 'sudo fpm --refresh' to generate it.${NC}"
+        exit 1
+    fi
+
+    # Check if the cache file is empty, which would cause fzf to exit immediately
+    if [ ! -s "$CACHE_FILE" ]; then
+        echo -e "${RED}Error: Package cache is empty.${NC}"
+        echo -e "${BLUE}Please run 'sudo fpm --refresh' to generate it.${NC}"
         exit 1
     fi
 }
@@ -68,13 +82,6 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "# fuzzpm configuration" > "$CONFIG_FILE"
 fi
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
 # Parse command line arguments
 case "${1:-}" in
     -h|--help)
@@ -105,13 +112,13 @@ if ! command -v fzf &> /dev/null; then
     exit 1
 fi
 
-# Ensure cache exists before running fzf
+# Ensure cache exists and is not empty before running fzf
 check_cache
 
 # Main fzf interface
 main() {
-    # Use bat for preview if available, otherwise use cat
-    PREVIEW_CMD="apt show {1} 2>/dev/null"
+    # Wrap the command in a subshell to robustly suppress stderr and avoid the warning
+    PREVIEW_CMD="(apt-cache show {1} 2>/dev/null)"
     if command -v bat &> /dev/null; then
         PREVIEW_CMD="$PREVIEW_CMD | bat --style=plain --color=always --language=deb"
     fi
@@ -122,9 +129,9 @@ main() {
         --header="Enter: Install | Ctrl-U: Uninstall | Ctrl-H: Details" \
         --preview="$PREVIEW_CMD" \
         --preview-window=right:50% \
-        --bind="ctrl-u:execute(sudo apt remove -y {1} && echo -e '${GREEN}Package {1} removed.${NC}')+abort" \
-        --bind="ctrl-h:execute(apt show {1} 2>/dev/null | less)" \
-        --bind="enter:execute(sudo apt install -y {1} && echo -e '${GREEN}Package {1} installed.${NC}')+abort" \
+        --bind="ctrl-u:execute(sudo apt remove -y {1} > /dev/tty 2>&1; echo ''; echo -e '${GREEN}Press Enter to continue...${NC}'; read < /dev/tty)+abort" \
+        --bind="ctrl-h:execute((apt-cache show {1} 2>/dev/null) | less)" \
+        --bind="enter:execute(sudo apt install -y {1} > /dev/tty 2>&1; echo ''; echo -e '${GREEN}Press Enter to continue...${NC}'; read < /dev/tty)+abort" \
         --height=100% \
         --layout=reverse)
 
@@ -134,4 +141,3 @@ main() {
 }
 
 main
-EOF
